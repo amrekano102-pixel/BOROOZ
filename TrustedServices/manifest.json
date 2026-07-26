@@ -1,0 +1,29 @@
+{
+  "name": "borooz",
+  "short_name": "borooz",
+  "description": "منصة خدمات موثوقة — سوق خدمات، دوائر إعلانية، وتواصل آمن",
+  "start_url": "index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0A0A0A",
+  "theme_color": "#FFD700",
+  "dir": "rtl",
+  "lang": "ar-SA",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "social"],
+  "prefer_related_applications": false
+}

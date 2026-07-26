@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>borooz - لوحة التحكم</title>
+  <link rel="manifest" href="admin-manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="borooz Admin">
+  <meta name="mobile-web-app-capable" content="yes">
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #111;
+      color: #FFD700;
+      font-family: system-ui, sans-serif;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #222;
+      border-top-color: #FFD700;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    p { color: #888; font-size: 14px; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="spinner"></div>
+  <p>جاري التوجيه إلى لوحة التحكم...</p>
+  <script>
+    location.href = 'index.html#admin';
+  </script>
+</body>
+</html>
