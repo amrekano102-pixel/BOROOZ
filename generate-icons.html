@@ -1,0 +1,29 @@
+<!DOCTYPE html><html dir="ltr"><head><meta charset="UTF-8"><title>Generate Icons</title></head>
+<body style="background:#0A0A0A;color:#fff;font-family:sans-serif;text-align:center;padding:40px">
+<h1 style="color:#FFD700">توليد الأيقونات</h1>
+<p>اضغط الزر عشان تولد الأيقونات وتحملها</p>
+<canvas id="c" width="512" height="512" style="border:1px solid #333;margin:20px auto;display:block"></canvas>
+<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:20px">
+  <button onclick="gen('icon-192.png',192)" style="padding:12px 24px;background:#FFD700;color:#000;border:none;border-radius:8px;font-weight:700;cursor:pointer">تحميل 192x192</button>
+  <button onclick="gen('icon-512.png',512)" style="padding:12px 24px;background:#FFD700;color:#000;border:none;border-radius:8px;font-weight:700;cursor:pointer">تحميل 512x512</button>
+  <button onclick="gen('icon-admin-192.png',192,'#1a1a2e')" style="padding:12px 24px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer">Admin 192</button>
+  <button onclick="gen('icon-admin-512.png',512,'#1a1a2e')" style="padding:12px 24px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer">Admin 512</button>
+</div>
+<script>
+function gen(name,size,bg='#0A0A0A'){
+  const c=document.getElementById('c'),ctx=c.getContext('2d');
+  c.width=size;c.height=size;ctx.clearRect(0,0,size,size);
+  ctx.fillStyle=bg;ctx.fillRect(0,0,size,size);
+  const s=size/512;
+  ctx.shadowColor='rgba(212,175,55,0.4)';ctx.shadowBlur=30*s;
+  ctx.fillStyle='#FFD700';ctx.beginPath();ctx.arc(256*s,220*s,120*s,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#FFF1A8';ctx.font=`bold ${140*s}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('TS',256*s,240*s);
+  ctx.fillStyle='rgba(255,255,255,0.15)';ctx.font=`${40*s}px Arial`;
+  ctx.fillText(name.includes('admin')?'ADMIN':'',256*s,400*s);
+  const a=document.createElement('a');a.download=name;
+  a.href=c.toDataURL('image/png');a.click();
+}
+</script>
+</body></html>
