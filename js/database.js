@@ -1,7 +1,36 @@
-/* ====== IndexedDB Database Layer ====== */
+/* ====== Firebase Config ====== */
+const firebaseConfig = {
+  apiKey: "REPLACE_ME",
+  authDomain: "REPLACE_ME",
+  projectId: "REPLACE_ME",
+  storageBucket: "REPLACE_ME",
+  messagingSenderId: "REPLACE_ME",
+  appId: "REPLACE_ME"
+};
+
+let _firestore = null;
+let _useFirestore = false;
+
+function initFirebase() {
+  try {
+    if (firebaseConfig.apiKey !== "REPLACE_ME" && typeof firebase !== 'undefined') {
+      firebase.initializeApp(firebaseConfig);
+      _firestore = firebase.firestore();
+      _useFirestore = true;
+      console.log('Firebase Firestore connected');
+    } else {
+      console.warn('Firebase not configured, using IndexedDB only');
+    }
+  } catch (e) {
+    console.warn('Firebase init failed, using IndexedDB only:', e);
+  }
+}
+
+initFirebase();
+
+/* ====== IndexedDB (offline fallback) ====== */
 const DB_NAME = 'boroozDB';
 const DB_VERSION = 1;
-
 let _db = null;
 
 function openDB() {
@@ -47,7 +76,7 @@ function tx(storeName, mode = 'readonly') {
   });
 }
 
-const db = {
+const localDB = {
   getAll(storeName) {
     return tx(storeName).then(({ store }) =>
       new Promise((resolve, reject) => {
@@ -115,6 +144,130 @@ const db = {
   }
 };
 
+/* ====== Unified DB (Firestore + IndexedDB fallback) ====== */
+const db = {
+  async getAll(storeName) {
+    if (_useFirestore) {
+      try {
+        const snap = await _firestore.collection(storeName).get();
+        const results = [];
+        snap.forEach(doc => results.push({ id: doc.id, ...doc.data() }));
+        // Cache locally
+        for (const item of results) {
+          await localDB.put(storeName, item).catch(() => {});
+        }
+        return results;
+      } catch (e) {
+        console.warn(`Firestore getAll(${storeName}) failed, using local:`, e);
+        return localDB.getAll(storeName);
+      }
+    }
+    return localDB.getAll(storeName);
+  },
+
+  async get(storeName, id) {
+    if (_useFirestore) {
+      try {
+        const doc = await _firestore.collection(storeName).doc(String(id)).get();
+        if (doc.exists) {
+          const data = { id: doc.id, ...doc.data() };
+          await localDB.put(storeName, data).catch(() => {});
+          return data;
+        }
+        return null;
+      } catch (e) {
+        console.warn(`Firestore get(${storeName}) failed, using local:`, e);
+        return localDB.get(storeName, id);
+      }
+    }
+    return localDB.get(storeName, id);
+  },
+
+  async add(storeName, data) {
+    const id = data.id ? String(data.id) : undefined;
+    if (_useFirestore) {
+      try {
+        const docRef = id
+          ? _firestore.collection(storeName).doc(id)
+          : _firestore.collection(storeName).doc();
+        await docRef.set(data);
+        const savedData = { id: docRef.id, ...data };
+        await localDB.put(storeName, savedData).catch(() => {});
+        return docRef.id;
+      } catch (e) {
+        console.warn(`Firestore add(${storeName}) failed, using local:`, e);
+        return localDB.add(storeName, data);
+      }
+    }
+    return localDB.add(storeName, data);
+  },
+
+  async put(storeName, data) {
+    const id = data.id ? String(data.id) : undefined;
+    if (_useFirestore) {
+      try {
+        const docRef = id
+          ? _firestore.collection(storeName).doc(id)
+          : _firestore.collection(storeName).doc();
+        await docRef.set(data, { merge: true });
+        const savedData = { id: docRef.id, ...data };
+        await localDB.put(storeName, savedData).catch(() => {});
+        return docRef.id;
+      } catch (e) {
+        console.warn(`Firestore put(${storeName}) failed, using local:`, e);
+        return localDB.put(storeName, data);
+      }
+    }
+    return localDB.put(storeName, data);
+  },
+
+  async delete(storeName, id) {
+    if (_useFirestore) {
+      try {
+        await _firestore.collection(storeName).doc(String(id)).delete();
+        await localDB.delete(storeName, id).catch(() => {});
+        return;
+      } catch (e) {
+        console.warn(`Firestore delete(${storeName}) failed, using local:`, e);
+        return localDB.delete(storeName, id);
+      }
+    }
+    return localDB.delete(storeName, id);
+  },
+
+  async getByIndex(storeName, indexName, value) {
+    if (_useFirestore) {
+      try {
+        const snap = await _firestore.collection(storeName).where(indexName, '==', value).get();
+        const results = [];
+        snap.forEach(doc => results.push({ id: doc.id, ...doc.data() }));
+        return results;
+      } catch (e) {
+        console.warn(`Firestore getByIndex(${storeName}) failed, using local:`, e);
+        return localDB.getByIndex(storeName, indexName, value);
+      }
+    }
+    return localDB.getByIndex(storeName, indexName, value);
+  },
+
+  async clear(storeName) {
+    if (_useFirestore) {
+      try {
+        const snap = await _firestore.collection(storeName).get();
+        const batch = _firestore.batch();
+        snap.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+        await localDB.clear(storeName).catch(() => {});
+        return;
+      } catch (e) {
+        console.warn(`Firestore clear(${storeName}) failed, using local:`, e);
+        return localDB.clear(storeName);
+      }
+    }
+    return localDB.clear(storeName);
+  }
+};
+
 /* ====== MIGRATION from localStorage ====== */
 async function migrateFromLocalStorage() {
   try {
@@ -123,7 +276,6 @@ async function migrateFromLocalStorage() {
     const data = JSON.parse(raw);
     let migrated = false;
 
-    // Migrate users
     if (data.users && data.users.length > 0) {
       const existing = await db.getAll('users');
       if (existing.length === 0) {
@@ -145,7 +297,6 @@ async function migrateFromLocalStorage() {
       }
     }
 
-    // Migrate services + contacts
     if (data.posts && data.posts.length > 0) {
       const existing = await db.getAll('services');
       if (existing.length === 0) {
@@ -185,7 +336,6 @@ async function migrateFromLocalStorage() {
       }
     }
 
-    // Migrate circles
     if (data.circles && data.circles.length > 0) {
       const existing = await db.getAll('featured_circles');
       if (existing.length === 0) {
@@ -203,7 +353,6 @@ async function migrateFromLocalStorage() {
             status: status
           });
         }
-        // Save circle prices separately
         if (data.circles.length > 0) {
           await db.put('circle_prices', {
             id: 1,
@@ -216,7 +365,6 @@ async function migrateFromLocalStorage() {
       }
     }
 
-    // Migrate settings
     if (data.settings) {
       await db.put('circle_prices', {
         id: 1,
@@ -227,14 +375,47 @@ async function migrateFromLocalStorage() {
     }
 
     if (migrated) {
-      // Clear localStorage after successful migration
       localStorage.removeItem('borooz_data');
-      console.log('Data migrated from localStorage to IndexedDB');
+      console.log('Data migrated from localStorage');
     }
     return migrated;
   } catch (e) {
     console.warn('Migration error:', e);
     return false;
+  }
+}
+
+/* ====== MIGRATION from IndexedDB to Firestore ====== */
+async function migrateLocalToFirestore() {
+  if (!_useFirestore) return;
+  try {
+    const users = await localDB.getAll('users');
+    for (const u of users) {
+      await db.put('users', u);
+    }
+    const services = await localDB.getAll('services');
+    for (const s of services) {
+      await db.put('services', s);
+    }
+    const contacts = await localDB.getAll('contacts');
+    for (const c of contacts) {
+      await db.put('contacts', c);
+    }
+    const circles = await localDB.getAll('featured_circles');
+    for (const c of circles) {
+      await db.put('featured_circles', c);
+    }
+    const prices = await localDB.get('circle_prices', 1);
+    if (prices) {
+      await db.put('circle_prices', prices);
+    }
+    const reports = await localDB.getAll('reports');
+    for (const r of reports) {
+      await db.put('reports', r);
+    }
+    console.log('Local data migrated to Firestore');
+  } catch (e) {
+    console.warn('Local to Firestore migration error:', e);
   }
 }
 
@@ -247,7 +428,6 @@ async function loadAllData() {
   const pricesRecord = await db.get('circle_prices', 1);
   const reports = await db.getAll('reports');
 
-  // Rebuild posts with embedded contacts
   const posts = services.map(s => {
     const c = contacts.find(ct => ct.service_id === s.id);
     let images = [];
@@ -274,7 +454,6 @@ async function loadAllData() {
     };
   });
 
-  // Rebuild circles with prices
   const defaultPrices = { day: 50, week: 200, month: 500 };
   const prices = pricesRecord
     ? { day: pricesRecord.daily_price || 50, week: pricesRecord.weekly_price || 200, month: pricesRecord.monthly_price || 500 }
@@ -289,7 +468,8 @@ async function loadAllData() {
         bookedAt: c.start_date || null,
         bookedUntil: c.end_date || null,
         adImage: c.advertiser_logo || null,
-        durationType: c.duration_type || null
+        durationType: c.duration_type || null,
+        contactLink: c.contactLink || null
       }))
     : null;
 
@@ -315,6 +495,8 @@ async function saveUser(user) {
     whatsapp: user.whatsapp || '',
     telegram: user.telegram || '',
     blocked: user.blocked || false,
+    verified: user.verified || false,
+    merchant: user.merchant || false,
     created_at: user.createdAt || user.created_at || Date.now()
   };
   await db.put('users', record);
@@ -342,7 +524,6 @@ async function saveService(post) {
     email: post.email || ''
   };
   await db.put('services', record);
-  // Save contact separately (legacy)
   if (post.contact) {
     await db.put('contacts', {
       id: 'c_' + post.id,
@@ -372,10 +553,10 @@ async function saveCircles(circles) {
       start_date: c.bookedAt || null,
       end_date: c.bookedUntil || null,
       duration_type: c.durationType || '',
-      status: status
+      status: status,
+      contactLink: c.contactLink || null
     });
   }
-  // Save prices
   if (circles.length > 0 && circles[0].prices) {
     const existing = await db.get('circle_prices', 1);
     await db.put('circle_prices', {
@@ -404,5 +585,4 @@ async function saveReport(report) {
 }
 
 async function saveSession(user) {
-  // Session is stored in state only; user record already saved via saveUser
 }
