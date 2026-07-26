@@ -1,11 +1,11 @@
 /* ====== Firebase Config ====== */
 const firebaseConfig = {
-  apiKey: "REPLACE_ME",
-  authDomain: "REPLACE_ME",
-  projectId: "REPLACE_ME",
-  storageBucket: "REPLACE_ME",
-  messagingSenderId: "REPLACE_ME",
-  appId: "REPLACE_ME"
+  apiKey: "AIzaSyAuP-99VJyQT50JhRyK-CWuJL1kG2zebCg",
+  authDomain: "borooz.firebaseapp.com",
+  projectId: "borooz",
+  storageBucket: "borooz.firebasestorage.app",
+  messagingSenderId: "245377309231",
+  appId: "1:245377309231:web:ee828b8f13613ac88c44da"
 };
 
 let _firestore = null;
