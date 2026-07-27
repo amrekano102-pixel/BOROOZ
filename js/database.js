@@ -19,6 +19,8 @@ function initSupabase() {
   }
 }
 
+initSupabase();
+
 /* ====== IndexedDB (offline fallback) ====== */
 const DB_NAME = 'boroozDB';
 const DB_VERSION = 1;
