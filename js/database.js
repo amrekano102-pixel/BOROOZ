@@ -2,20 +2,20 @@
 const SUPABASE_URL = 'https://swnnsgmemjxhoqfzhryu.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3bm5zZ21lbWp4aG9xZnpocnl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxNzM4NTcsImV4cCI6MjEwMDc0OTg1N30.yRwVtE6TWH8APnveJmCOxvywo6VbV77xZZpkZRmFsWg';
 
-let _supabase = null;
-let _useSupabase = false;
+window._supabase = null;
+window._useSupabase = false;
 
 function initSupabase() {
   try {
     if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
-      _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      _useSupabase = true;
-      console.log('Supabase connected');
+      window._supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      window._useSupabase = true;
+      console.log('✅ Supabase connected');
     } else {
-      console.warn('Supabase SDK not loaded, using IndexedDB only');
+      console.warn('❌ Supabase SDK not loaded, using IndexedDB only. window.supabase =', typeof window.supabase);
     }
   } catch (e) {
-    console.warn('Supabase init failed, using IndexedDB only:', e);
+    console.warn('❌ Supabase init failed:', e);
   }
 }
 
@@ -140,9 +140,9 @@ const localDB = {
 /* ====== Unified DB (Supabase + IndexedDB fallback) ====== */
 const db = {
   async getAll(storeName) {
-    if (_useSupabase) {
+    if (window._useSupabase) {
       try {
-        const { data, error } = await _supabase.from(storeName).select('*');
+        const { data, error } = await window._supabase.from(storeName).select('*');
         if (error) throw error;
         const results = data || [];
         for (const item of results) {
@@ -158,9 +158,9 @@ const db = {
   },
 
   async get(storeName, id) {
-    if (_useSupabase) {
+    if (window._useSupabase) {
       try {
-        const { data, error } = await _supabase.from(storeName).select('*').eq('id', String(id)).single();
+        const { data, error } = await window._supabase.from(storeName).select('*').eq('id', String(id)).single();
         if (error) throw error;
         if (data) {
           await localDB.put(storeName, data).catch(() => {});
@@ -176,9 +176,9 @@ const db = {
   },
 
   async add(storeName, data) {
-    if (_useSupabase) {
+    if (window._useSupabase) {
       try {
-        const { error } = await _supabase.from(storeName).upsert(data, { onConflict: 'id' });
+        const { error } = await window._supabase.from(storeName).upsert(data, { onConflict: 'id' });
         if (error) throw error;
         await localDB.put(storeName, data).catch(() => {});
         return data.id;
@@ -191,9 +191,9 @@ const db = {
   },
 
   async put(storeName, data) {
-    if (_useSupabase) {
+    if (window._useSupabase) {
       try {
-        const { error } = await _supabase.from(storeName).upsert(data, { onConflict: 'id' });
+        const { error } = await window._supabase.from(storeName).upsert(data, { onConflict: 'id' });
         if (error) throw error;
         await localDB.put(storeName, data).catch(() => {});
         return data.id;
@@ -206,9 +206,9 @@ const db = {
   },
 
   async delete(storeName, id) {
-    if (_useSupabase) {
+    if (window._useSupabase) {
       try {
-        const { error } = await _supabase.from(storeName).delete().eq('id', String(id));
+        const { error } = await window._supabase.from(storeName).delete().eq('id', String(id));
         if (error) throw error;
         await localDB.delete(storeName, id).catch(() => {});
         return;
@@ -221,9 +221,9 @@ const db = {
   },
 
   async getByIndex(storeName, indexName, value) {
-    if (_useSupabase) {
+    if (window._useSupabase) {
       try {
-        const { data, error } = await _supabase.from(storeName).select('*').eq(indexName, value);
+        const { data, error } = await window._supabase.from(storeName).select('*').eq(indexName, value);
         if (error) throw error;
         return data || [];
       } catch (e) {
@@ -235,9 +235,9 @@ const db = {
   },
 
   async clear(storeName) {
-    if (_useSupabase) {
+    if (window._useSupabase) {
       try {
-        const { error } = await _supabase.from(storeName).delete().neq('id', '__nonexistent__');
+        const { error } = await window._supabase.from(storeName).delete().neq('id', '__nonexistent__');
         if (error) throw error;
         await localDB.clear(storeName).catch(() => {});
         return;
