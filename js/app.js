@@ -2222,16 +2222,13 @@ async function init() {
     return;
   }
 
-  // Render initial view - allow public browsing
+  // Render initial view
   if (state.currentUser) {
     renderApp();
   } else {
-    document.getElementById('page-auth').classList.remove('active');
-    document.getElementById('app').classList.remove('hidden');
-    document.getElementById('header-auth-buttons').classList.remove('hidden');
-    document.querySelector('.profile-dropdown').classList.add('hidden');
-    document.getElementById('btn-create-post').classList.add('hidden');
-    showPage('feed');
+    // Keep auth page visible — user must log in or register
+    document.getElementById('page-auth').classList.add('active');
+    document.getElementById('app').classList.add('hidden');
   }
 }
 
