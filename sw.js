@@ -1,4 +1,4 @@
-const CACHE_NAME = 'borooz-v1';
+const CACHE_NAME = 'borooz-v2';
 const urlsToCache = [
   'index.html',
   'admin.html',
