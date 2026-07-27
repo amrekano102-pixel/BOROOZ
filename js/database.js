@@ -1,32 +1,23 @@
-/* ====== Firebase Config ====== */
-const firebaseConfig = {
-  apiKey: "AIzaSyAuP-99VJyQT50JhRyK-CWuJL1kG2zebCg",
-  authDomain: "borooz.firebaseapp.com",
-  projectId: "borooz",
-  storageBucket: "borooz.firebasestorage.app",
-  messagingSenderId: "245377309231",
-  appId: "1:245377309231:web:ee828b8f13613ac88c44da"
-};
+/* ====== Supabase Config ====== */
+const SUPABASE_URL = 'https://swnnsgmemjxhoqfzhryu.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3bm5zZ21lbWp4aG9xZnpocnl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxNzM4NTcsImV4cCI6MjEwMDc0OTg1N30.yRwVtE6TWH8APnveJmCOxvywo6VbV77xZZpkZRmFsWg';
 
-let _firestore = null;
-let _useFirestore = false;
+let _supabase = null;
+let _useSupabase = false;
 
-function initFirebase() {
+function initSupabase() {
   try {
-    if (firebaseConfig.apiKey !== "REPLACE_ME" && typeof firebase !== 'undefined') {
-      firebase.initializeApp(firebaseConfig);
-      _firestore = firebase.firestore();
-      _useFirestore = true;
-      console.log('Firebase Firestore connected');
+    if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+      _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      _useSupabase = true;
+      console.log('Supabase connected');
     } else {
-      console.warn('Firebase not configured, using IndexedDB only');
+      console.warn('Supabase SDK not loaded, using IndexedDB only');
     }
   } catch (e) {
-    console.warn('Firebase init failed, using IndexedDB only:', e);
+    console.warn('Supabase init failed, using IndexedDB only:', e);
   }
 }
-
-initFirebase();
 
 /* ====== IndexedDB (offline fallback) ====== */
 const DB_NAME = 'boroozDB';
@@ -144,21 +135,20 @@ const localDB = {
   }
 };
 
-/* ====== Unified DB (Firestore + IndexedDB fallback) ====== */
+/* ====== Unified DB (Supabase + IndexedDB fallback) ====== */
 const db = {
   async getAll(storeName) {
-    if (_useFirestore) {
+    if (_useSupabase) {
       try {
-        const snap = await _firestore.collection(storeName).get();
-        const results = [];
-        snap.forEach(doc => results.push({ id: doc.id, ...doc.data() }));
-        // Cache locally
+        const { data, error } = await _supabase.from(storeName).select('*');
+        if (error) throw error;
+        const results = data || [];
         for (const item of results) {
           await localDB.put(storeName, item).catch(() => {});
         }
         return results;
       } catch (e) {
-        console.warn(`Firestore getAll(${storeName}) failed, using local:`, e);
+        console.warn(`Supabase getAll(${storeName}) failed, using local:`, e);
         return localDB.getAll(storeName);
       }
     }
@@ -166,17 +156,17 @@ const db = {
   },
 
   async get(storeName, id) {
-    if (_useFirestore) {
+    if (_useSupabase) {
       try {
-        const doc = await _firestore.collection(storeName).doc(String(id)).get();
-        if (doc.exists) {
-          const data = { id: doc.id, ...doc.data() };
+        const { data, error } = await _supabase.from(storeName).select('*').eq('id', String(id)).single();
+        if (error) throw error;
+        if (data) {
           await localDB.put(storeName, data).catch(() => {});
-          return data;
         }
-        return null;
+        return data || null;
       } catch (e) {
-        console.warn(`Firestore get(${storeName}) failed, using local:`, e);
+        if (e.code === 'PGRST116') return null;
+        console.warn(`Supabase get(${storeName}) failed, using local:`, e);
         return localDB.get(storeName, id);
       }
     }
@@ -184,18 +174,14 @@ const db = {
   },
 
   async add(storeName, data) {
-    const id = data.id ? String(data.id) : undefined;
-    if (_useFirestore) {
+    if (_useSupabase) {
       try {
-        const docRef = id
-          ? _firestore.collection(storeName).doc(id)
-          : _firestore.collection(storeName).doc();
-        await docRef.set(data);
-        const savedData = { id: docRef.id, ...data };
-        await localDB.put(storeName, savedData).catch(() => {});
-        return docRef.id;
+        const { error } = await _supabase.from(storeName).upsert(data, { onConflict: 'id' });
+        if (error) throw error;
+        await localDB.put(storeName, data).catch(() => {});
+        return data.id;
       } catch (e) {
-        console.warn(`Firestore add(${storeName}) failed, using local:`, e);
+        console.warn(`Supabase add(${storeName}) failed, using local:`, e);
         return localDB.add(storeName, data);
       }
     }
@@ -203,18 +189,14 @@ const db = {
   },
 
   async put(storeName, data) {
-    const id = data.id ? String(data.id) : undefined;
-    if (_useFirestore) {
+    if (_useSupabase) {
       try {
-        const docRef = id
-          ? _firestore.collection(storeName).doc(id)
-          : _firestore.collection(storeName).doc();
-        await docRef.set(data, { merge: true });
-        const savedData = { id: docRef.id, ...data };
-        await localDB.put(storeName, savedData).catch(() => {});
-        return docRef.id;
+        const { error } = await _supabase.from(storeName).upsert(data, { onConflict: 'id' });
+        if (error) throw error;
+        await localDB.put(storeName, data).catch(() => {});
+        return data.id;
       } catch (e) {
-        console.warn(`Firestore put(${storeName}) failed, using local:`, e);
+        console.warn(`Supabase put(${storeName}) failed, using local:`, e);
         return localDB.put(storeName, data);
       }
     }
@@ -222,13 +204,14 @@ const db = {
   },
 
   async delete(storeName, id) {
-    if (_useFirestore) {
+    if (_useSupabase) {
       try {
-        await _firestore.collection(storeName).doc(String(id)).delete();
+        const { error } = await _supabase.from(storeName).delete().eq('id', String(id));
+        if (error) throw error;
         await localDB.delete(storeName, id).catch(() => {});
         return;
       } catch (e) {
-        console.warn(`Firestore delete(${storeName}) failed, using local:`, e);
+        console.warn(`Supabase delete(${storeName}) failed, using local:`, e);
         return localDB.delete(storeName, id);
       }
     }
@@ -236,14 +219,13 @@ const db = {
   },
 
   async getByIndex(storeName, indexName, value) {
-    if (_useFirestore) {
+    if (_useSupabase) {
       try {
-        const snap = await _firestore.collection(storeName).where(indexName, '==', value).get();
-        const results = [];
-        snap.forEach(doc => results.push({ id: doc.id, ...doc.data() }));
-        return results;
+        const { data, error } = await _supabase.from(storeName).select('*').eq(indexName, value);
+        if (error) throw error;
+        return data || [];
       } catch (e) {
-        console.warn(`Firestore getByIndex(${storeName}) failed, using local:`, e);
+        console.warn(`Supabase getByIndex(${storeName}) failed, using local:`, e);
         return localDB.getByIndex(storeName, indexName, value);
       }
     }
@@ -251,16 +233,14 @@ const db = {
   },
 
   async clear(storeName) {
-    if (_useFirestore) {
+    if (_useSupabase) {
       try {
-        const snap = await _firestore.collection(storeName).get();
-        const batch = _firestore.batch();
-        snap.forEach(doc => batch.delete(doc.ref));
-        await batch.commit();
+        const { error } = await _supabase.from(storeName).delete().neq('id', '__nonexistent__');
+        if (error) throw error;
         await localDB.clear(storeName).catch(() => {});
         return;
       } catch (e) {
-        console.warn(`Firestore clear(${storeName}) failed, using local:`, e);
+        console.warn(`Supabase clear(${storeName}) failed, using local:`, e);
         return localDB.clear(storeName);
       }
     }
@@ -290,6 +270,8 @@ async function migrateFromLocalStorage() {
             whatsapp: u.whatsapp || '',
             telegram: u.telegram || '',
             blocked: u.blocked || false,
+            verified: u.verified || false,
+            merchant: u.merchant || false,
             created_at: u.createdAt || Date.now()
           });
         }
@@ -344,18 +326,19 @@ async function migrateFromLocalStorage() {
             ? (c.bookedUntil && c.bookedUntil < Date.now() ? 'expired' : 'active')
             : 'available';
           await db.add('featured_circles', {
-            id: c.id,
+            id: String(c.id),
             advertiser_name: c.bookedBy || '',
             advertiser_logo: c.adImage || '',
             start_date: c.bookedAt || null,
             end_date: c.bookedUntil || null,
             duration_type: c.durationType || '',
-            status: status
+            status: status,
+            contact_link: c.contactLink || ''
           });
         }
         if (data.circles.length > 0) {
           await db.put('circle_prices', {
-            id: 1,
+            id: '1',
             daily_price: data.circles[0].prices?.day || 50,
             weekly_price: data.circles[0].prices?.week || 200,
             monthly_price: data.circles[0].prices?.month || 500
@@ -367,8 +350,10 @@ async function migrateFromLocalStorage() {
 
     if (data.settings) {
       await db.put('circle_prices', {
-        id: 1,
-        ...data.settings.circlePrices || {},
+        id: '1',
+        daily_price: data.settings.circlePrices?.daily_price || 50,
+        weekly_price: data.settings.circlePrices?.weekly_price || 200,
+        monthly_price: data.settings.circlePrices?.monthly_price || 500,
         site_settings: data.settings
       });
       migrated = true;
@@ -385,47 +370,13 @@ async function migrateFromLocalStorage() {
   }
 }
 
-/* ====== MIGRATION from IndexedDB to Firestore ====== */
-async function migrateLocalToFirestore() {
-  if (!_useFirestore) return;
-  try {
-    const users = await localDB.getAll('users');
-    for (const u of users) {
-      await db.put('users', u);
-    }
-    const services = await localDB.getAll('services');
-    for (const s of services) {
-      await db.put('services', s);
-    }
-    const contacts = await localDB.getAll('contacts');
-    for (const c of contacts) {
-      await db.put('contacts', c);
-    }
-    const circles = await localDB.getAll('featured_circles');
-    for (const c of circles) {
-      await db.put('featured_circles', c);
-    }
-    const prices = await localDB.get('circle_prices', 1);
-    if (prices) {
-      await db.put('circle_prices', prices);
-    }
-    const reports = await localDB.getAll('reports');
-    for (const r of reports) {
-      await db.put('reports', r);
-    }
-    console.log('Local data migrated to Firestore');
-  } catch (e) {
-    console.warn('Local to Firestore migration error:', e);
-  }
-}
-
 /* ====== LOAD all data into app state ====== */
 async function loadAllData() {
   const users = await db.getAll('users');
   const services = await db.getAll('services');
   const contacts = await db.getAll('contacts');
   const circles = await db.getAll('featured_circles');
-  const pricesRecord = await db.get('circle_prices', 1);
+  const pricesRecord = await db.get('circle_prices', '1');
   const reports = await db.getAll('reports');
 
   const posts = services.map(s => {
@@ -461,7 +412,7 @@ async function loadAllData() {
 
   const circlesWithPrices = circles.length > 0
     ? circles.map(c => ({
-        id: c.id,
+        id: parseInt(c.id) || c.id,
         prices: { ...prices },
         booked: c.status === 'active',
         bookedBy: c.advertiser_name || null,
@@ -469,7 +420,7 @@ async function loadAllData() {
         bookedUntil: c.end_date || null,
         adImage: c.advertiser_logo || null,
         durationType: c.duration_type || null,
-        contactLink: c.contactLink || null
+        contactLink: c.contact_link || null
       }))
     : null;
 
@@ -547,20 +498,20 @@ async function saveCircles(circles) {
       ? (c.bookedUntil && c.bookedUntil < Date.now() ? 'expired' : 'active')
       : 'available';
     await db.put('featured_circles', {
-      id: c.id,
+      id: String(c.id),
       advertiser_name: c.bookedBy || '',
       advertiser_logo: c.adImage || null,
       start_date: c.bookedAt || null,
       end_date: c.bookedUntil || null,
       duration_type: c.durationType || '',
       status: status,
-      contactLink: c.contactLink || null
+      contact_link: c.contactLink || null
     });
   }
   if (circles.length > 0 && circles[0].prices) {
-    const existing = await db.get('circle_prices', 1);
+    const existing = await db.get('circle_prices', '1');
     await db.put('circle_prices', {
-      id: 1,
+      id: '1',
       daily_price: circles[0].prices.day || 50,
       weekly_price: circles[0].prices.week || 200,
       monthly_price: circles[0].prices.month || 500,
@@ -570,9 +521,9 @@ async function saveCircles(circles) {
 }
 
 async function saveSettingsToDB(settings) {
-  const existing = await db.get('circle_prices', 1);
+  const existing = await db.get('circle_prices', '1');
   await db.put('circle_prices', {
-    id: 1,
+    id: '1',
     daily_price: existing?.daily_price || 50,
     weekly_price: existing?.weekly_price || 200,
     monthly_price: existing?.monthly_price || 500,
